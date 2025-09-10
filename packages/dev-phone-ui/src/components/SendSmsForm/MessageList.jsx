@@ -1,7 +1,7 @@
 import {
-    Box, Flex, SkeletonLoader, 
-    Text, ChatLog, ChatMessage,
-    ChatBubble, ChatMessageMeta, ChatMessageMetaItem, 
+    Box, SkeletonLoader,
+    ChatLog, ChatMessage,
+    ChatBubble, ChatMessageMeta, ChatMessageMetaItem,
     Avatar
 } from "@twilio-paste/core"
 import { UserIcon } from '@twilio-paste/icons/esm/UserIcon';
@@ -20,10 +20,19 @@ function MessageList({ devPhoneName }) {
                     {messageList.length > 0 ?
                         messageList.map((message, i) => {
                             const isFromDevPhone = message.author === devPhoneName;
+                            const mediaItems = message.attributes?.media;
                             return (
                                 <ChatMessage variant={!isFromDevPhone ? "outbound" : "inbound"}>
                                     <ChatBubble>
                                         {message.body}
+                                        {mediaItems.map((url, index) => (
+                                            <img
+                                                key={index}
+                                                src={url}
+                                                alt="MMS content"
+                                                style={{ maxWidth: '100%', borderRadius: '4px', marginTop: '8px' }}
+                                            />
+                                        ))}
                                     </ChatBubble>
                                     <ChatMessageMeta aria-label={!isFromDevPhone ? "said by outbound user" : "said by dev phone"}>
                                         <ChatMessageMetaItem>

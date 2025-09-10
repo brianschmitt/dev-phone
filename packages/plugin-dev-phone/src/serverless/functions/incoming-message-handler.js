@@ -10,6 +10,14 @@ exports.handler = async function(context, event, callback) {
             'serverless-functions'
         ]
     });
+
+    const media = [];
+    if (Number(event.NumMedia) > 0) {
+        for (let i = 0; i < Number(event.NumMedia); i++) {
+            media.push(event[`MediaUrl${i}`]);
+        }
+    }
+
     await client.conversations
         .services(context.CONVERSATION_SERVICE_SID)
         .conversations(context.CONVERSATION_SID)
@@ -17,12 +25,13 @@ exports.handler = async function(context, event, callback) {
         .create({
             author: event.From,
             body: event.Body,
-            attributes: {
+            attributes: JSON.stringify({
                 fromCity: event.FromCity,
                 fromCountry: event.FromCountry,
                 messageSid: event.MessageSid,
-                numMedia: event.NumMedia
-            }
+                numMedia: event.NumMedia,
+                media: media
+            })
         })
         .then(message => console.log(message));
 
