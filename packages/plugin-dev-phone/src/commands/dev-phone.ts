@@ -1,7 +1,9 @@
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 import open from 'open';
 import express from 'express';
+import multer from 'multer';
 import confirm from '@inquirer/confirm';
 
 import { Flags } from '@oclif/core';
@@ -171,16 +173,20 @@ class DevPhoneServer extends TwilioClientCommand {
             }
         })
 
-        app.post("/send-sms", async (req:express.Request, res:express.Response) => {
-            const {body, from, to} = req.body
+        const upload = multer({ storage: multer.memoryStorage() });
+        app.post("/send-sms", upload.single('media'), async (req:express.Request, res:express.Response) => {
+            const {body, from, to} = req.body;
             try {
-                const message = await this.twilioClient.messages
-                    .create({
-                        body,
-                        from,
-                        to
-                    })
-                res.json({result: message})
+                const createParams: any = { from, to };
+                if (body) createParams.body = body;
+
+                if (req.file) {
+                    const mediaUrl = await this.uploadToMcs(req.file);
+                    createParams.mediaUrl = [mediaUrl];
+                }
+
+                const message = await this.twilioClient.messages.create(createParams);
+                res.json({result: message});
             } catch (err: any) {
                 console.error('SMS API threw an error', err);
                 res.status(err.status ? err.status : 400).send({ error: err });
@@ -249,6 +255,44 @@ class DevPhoneServer extends TwilioClientCommand {
             }
 
             console.log('▶️  Use ctrl-c to stop your dev-phone\n');
+        });
+    }
+
+    async uploadToMcs(file: Express.Multer.File): Promise<string> {
+        const serviceSid = this.conversation.serviceSid;
+        const boundary = '----FormBoundary' + Date.now();
+        const header = `--${boundary}\r\nContent-Disposition: form-data; name="media"; filename="${file.originalname}"\r\nContent-Type: ${file.mimetype}\r\n\r\n`;
+        const footer = `\r\n--${boundary}--\r\n`;
+        const body = Buffer.concat([Buffer.from(header), file.buffer, Buffer.from(footer)]);
+
+        return new Promise((resolve, reject) => {
+            const options = {
+                hostname: 'mcs.us1.twilio.com',
+                path: `/v1/Services/${serviceSid}/Media`,
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(`${this.twilioClient.username}:${this.twilioClient.password}`).toString('base64')}`,
+                    'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    'Content-Length': body.length
+                }
+            };
+
+            const req = https.request(options, (res) => {
+                const chunks: Buffer[] = [];
+                res.on('data', (chunk: Buffer) => chunks.push(chunk));
+                res.on('end', () => {
+                    const response = JSON.parse(Buffer.concat(chunks).toString());
+                    const tempUrl = response.links?.content_direct_temporary;
+                    if (tempUrl) {
+                        resolve(tempUrl);
+                    } else {
+                        reject(new Error('MCS upload did not return a temporary URL'));
+                    }
+                });
+            });
+            req.on('error', reject);
+            req.write(body);
+            req.end();
         });
     }
 

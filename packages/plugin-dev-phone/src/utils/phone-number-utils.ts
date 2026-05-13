@@ -38,9 +38,11 @@ export async function removePhoneWebhooks(activeNumber: TwilioPhoneNumber, incom
     try {
         const updated = await incomingPhoneNumbersApi(activeNumber.sid)
             .update({
-                voiceUrl: "",
-                smsUrl: "",
+                voiceUrl: "https://demo.twilio.com/welcome/voice/",
+                smsUrl: "https://demo.twilio.com/welcome/sms/reply",
                 statusCallback: "",
+                voiceFallbackUrl: "",
+                smsFallbackUrl: "",
             })
         return updated
     } catch (err) {

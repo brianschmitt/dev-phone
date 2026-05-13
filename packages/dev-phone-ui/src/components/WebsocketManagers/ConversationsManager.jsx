@@ -15,25 +15,35 @@ const TwilioConversationsManager = ({ children }) => {
     const twilioAccessToken = useSelector(state => state.twilioAccessToken)
     const dispatch = useDispatch()
 
-    // responsible for sending an SMS via Serverless Functions/SMS API
-    const sendSms = (from, to, body) => {
-        // console.table({ from, to, body });
-    
-        if (from && to && body) {
+    const sendSms = (from, to, body, mediaFile) => {
+        if (from && to && (body || mediaFile)) {
+          const formData = new FormData();
+          formData.append('from', from);
+          formData.append('to', to);
+          if (body) formData.append('body', body);
+          if (mediaFile) formData.append('media', mediaFile);
           fetch("/send-sms", {
             method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ from, to, body }),
+            body: formData,
           });
         } else {
           console.error("Not sending as some data is missing");
         }
     };
 
-    // responsible for sending messages once an active conversation has been set
-    const sendMessage = (message) => {
-        if(activeConversation.current) {
-            activeConversation.current.sendMessage(message)
+    const sendMessage = async (body, mediaFile) => {
+        if (!activeConversation.current) return;
+        if (mediaFile) {
+            const builder = activeConversation.current.prepareMessage();
+            if (body) builder.setBody(body);
+            builder.addMedia({
+                contentType: mediaFile.type,
+                filename: mediaFile.name,
+                media: mediaFile
+            });
+            await builder.build().send();
+        } else {
+            activeConversation.current.sendMessage(body);
         }
     }
 
